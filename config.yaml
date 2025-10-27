@@ -13,9 +13,9 @@ stream:
   
 # dextrades sample filter
 filters:
-  programs:
-    - "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P" 
+  # programs:
+  #   - "6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P" 
 #  pool: # Market.MarketAddress
 #    - "5tUu7bX8d8Zz1v3v4Y9H9F6J7K8L9M0N1O2P3Q4R5S6T"
-#  traders: # Trade.Buy.Account / Trade.Sell.Account
-#    - "FV9wm1j8w2WRXKcCMLPGvxj4QeF5C1AQpM2aVM5JdNgk"
+ traders: # Trade.Buy.Account / Trade.Sell.Account
+   - "HV1KXxWFaSeriyFvXyx48FqG9BoFbfinB8njCJonqP7K"

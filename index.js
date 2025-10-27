@@ -2,7 +2,9 @@ const grpc = require('@grpc/grpc-js');
 const fs = require('fs');
 const yaml = require('js-yaml');
 const bs58 = require('bs58');
-const { loadPackageDefination } = require('bitquery-corecast-proto'); // ✅ use your package
+const { loadPackageDefination } = require('bitquery-corecast-proto'); 
+const {executeTrade} = require('./trade.js');
+const secrets = require('./secrets.json');
 
 // Performance optimization: Cache for base58 conversions
 const base58Cache = new Map();
@@ -32,20 +34,26 @@ const config = yaml.load(fs.readFileSync('./config.yaml', 'utf8'));
 
 // --- Helpers ---
 function toBase58(bytes) {
-  if (!bytes || bytes.length === 0) return 'undefined';
-  const cacheKey = Buffer.from(bytes).toString('hex');
-  if (base58Cache.has(cacheKey)) return base58Cache.get(cacheKey);
+  if (!bytes || bytes.length === 0) return "undefined";
+
+  const cacheKey = Buffer.from(bytes).toString("hex");
+
+  if (base58Cache.has(cacheKey)) {
+    return base58Cache.get(cacheKey);
+  }
 
   try {
     const result = bs58.encode(bytes);
+
     if (base58Cache.size >= MAX_CACHE_SIZE) {
       const firstKey = base58Cache.keys().next().value;
       base58Cache.delete(firstKey);
     }
     base58Cache.set(cacheKey, result);
+
     return result;
-  } catch {
-    return 'invalid_address';
+  } catch (error) {
+    return "invalid_address";
   }
 }
 
@@ -156,6 +164,20 @@ function createRequest() {
   return request;
 }
 
+async function executeTrades(params) {
+    const {inputMint, outputMint, marketAddress} = params;
+    const txSig = await executeTrade({
+        rpcUrl: 'https://api.mainnet-beta.solana.com',
+        secretKeyBase58: secrets.key,
+        inputMint: inputMint,
+        outputMint: outputMint,
+        amountInRaw: (0.05 * 1_000_000_000).toString(),
+        slippageBps: 100,
+        poolAddress: marketAddress,
+      });
+    
+    console.log('✅ Copy trade executed! Tx:', txSig);
+}
 // --- Stream listener ---
 function listenToStream() {
   console.log('Connecting to CoreCast stream...');
@@ -177,7 +199,7 @@ function listenToStream() {
     default: throw new Error(`Unsupported stream type: ${config.stream.type}`);
   }
 
-  stream.on('data', (message) => {
+  stream.on('data', async (message) => {
     const receivedTimestamp = Date.now();
     messageCount++;
     totalMessageSize += Buffer.byteLength(JSON.stringify(message), 'utf8');
@@ -190,17 +212,34 @@ function listenToStream() {
 
     if (message.Trade) {
       tradeCount++;
+      const marketAddress = toBase58(message.Trade.Market?.MarketAddress);
+      const inputMint = toBase58(message.Trade.Buy?.Currency?.MintAddress);
+      const outputMint = toBase58(message.Trade.Sell?.Currency?.MintAddress);
+      
       logLines.push(
         'Trade Event:',
         `  Instruction Index: ${message.Trade.InstructionIndex}`,
         `  DEX Program: ${toBase58(message.Trade.Dex?.ProgramAddress)}`,
         `  Protocol: ${message.Trade.Dex?.ProtocolName}`,
-        `  Market: ${toBase58(message.Trade.Market?.MarketAddress)}`,
-        `  Buy Amount: ${message.Trade.Buy?.Amount}`,
-        `  Sell Amount: ${message.Trade.Sell?.Amount}`,
+        `  Market: ${marketAddress}`,
+        `  Buy Currency: ${inputMint}`,
+        `  Sell Currency: ${outputMint}`,
         `  Fee: ${message.Trade.Fee}`,
         `  Royalty: ${message.Trade.Royalty}`
       );
+      
+      // Only execute trade if we have valid addresses
+      if (marketAddress !== 'invalid_address' && 
+          inputMint !== 'invalid_address' && 
+          outputMint !== 'invalid_address') {
+        try {
+          await executeTrades({inputMint, outputMint, marketAddress});
+        } catch (error) {
+          logLines.push(`  ❌ Trade execution failed: ${error.message}`);
+        }
+      } else {
+        logLines.push(`  ⚠️ Skipping trade - invalid addresses detected`);
+      }
     }
 
     if (message.Order) {
