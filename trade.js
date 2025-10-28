@@ -48,24 +48,42 @@ const {
     // Jupiter client
     const jupiter = createJupiterApiClient({ basePath: 'https://quote-api.jup.ag/v6' });
   
+    // Convert native SOL mint to wrapped SOL mint (Jupiter requires wSOL)
+    const NATIVE_SOL_MINT = '11111111111111111111111111111111';
+    const WRAPPED_SOL_MINT = 'So11111111111111111111111111111111111111112';
+    
+    const convertedInputMint = inputMint === NATIVE_SOL_MINT ? WRAPPED_SOL_MINT : inputMint;
+    const convertedOutputMint = outputMint === NATIVE_SOL_MINT ? WRAPPED_SOL_MINT : outputMint;
+  
     // 1️⃣ Fetch quote (simplified route for devnet)
     const quoteReq = {
-      inputMint,
-      outputMint,
+      inputMint: convertedInputMint,
+      outputMint: convertedOutputMint,
       amount: amountInRaw,
       slippageBps: slippageBps.toString(),
       onlyDirectRoutes: false, // Allow indirect routes for better liquidity
     };
   
-    console.log('🔍 Fetching quote with params:', quoteReq);
+    console.log('🔍 Fetching quote with params:', JSON.stringify(quoteReq, null, 2));
+    console.log('🔍 Original mints - Input:', inputMint, 'Output:', outputMint);
+    console.log('🔍 Converted mints - Input:', convertedInputMint, 'Output:', convertedOutputMint);
     
     let quote;
     try {
       // If user provides a pool, we will filter to that AMM route later
       quote = await jupiter.quoteGet(quoteReq);
     } catch (error) {
-      console.error('❌ Jupiter API error:', error.response?.data || error.message);
-      throw new Error(`Jupiter API error: ${error.response?.data?.message || error.message}`);
+      console.error('❌ Jupiter API error details:');
+      console.error('  Error message:', error.message);
+      console.error('  Response status:', error.response?.status);
+      console.error('  Response data:', error.response?.data);
+      console.error('  Full error:', error);
+      
+      // Try to get more details from the error
+      if (error.response?.data) {
+        throw new Error(`Jupiter API error: ${JSON.stringify(error.response.data)}`);
+      }
+      throw new Error(`Jupiter API error: ${error.message}`);
     }
   
     if (!quote || !quote.outAmount) throw new Error('No valid quote received');

@@ -1,6 +1,6 @@
 server:
   address: "corecast.bitquery.io"
-  authorization: "ory_at_kur5NiAXTvvRWCC0jVwPhQbhBrXuiR_mVM_LLv6y4-8.d-7hODq8rvbYWy9zs5N9wfpZrjMPnEs7JfMb_cMvDwg"
+  authorization: ""
   insecure: false
 
 stream:
